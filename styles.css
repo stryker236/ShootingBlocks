@@ -1,0 +1,115 @@
+:root {
+  color-scheme: dark;
+  --bg: #10131a;
+  --panel: #191f2a;
+  --panel-2: #202837;
+  --text: #eef3f8;
+  --muted: #9aa8b8;
+  --line: #334052;
+  --accent: #54d5a7;
+  --danger: #ff6b6b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+body {
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.game-shell {
+  width: min(100%, 1060px);
+  display: grid;
+  gap: 12px;
+}
+
+.hud,
+.controls {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  align-items: stretch;
+}
+
+.hud > div,
+.controls > div,
+button {
+  min-height: 58px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.hud > div,
+.controls > div {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 10px 12px;
+}
+
+.controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.label,
+.controls span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+strong {
+  font-size: 1rem;
+}
+
+button {
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  background: var(--panel-2);
+}
+
+button:hover,
+button:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+canvas {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #080a0e;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 0.32);
+}
+
+@media (max-width: 720px) {
+  body {
+    padding: 10px;
+  }
+
+  .hud {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .controls {
+    grid-template-columns: 1fr;
+  }
+}

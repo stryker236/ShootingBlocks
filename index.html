@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shooting Blocks</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <section class="hud" aria-label="Estado do jogo">
+        <div>
+          <span class="label">Tempo</span>
+          <strong id="time">0.0s</strong>
+        </div>
+        <div>
+          <span class="label">Pontos</span>
+          <strong id="score">0</strong>
+        </div>
+        <div>
+          <span class="label">Nivel</span>
+          <strong id="level">1</strong>
+        </div>
+        <button id="mode" type="button">Single</button>
+        <button id="restart" type="button">Reiniciar</button>
+      </section>
+
+      <canvas id="game" width="960" height="720" aria-label="Shooting Blocks"></canvas>
+
+      <section class="controls" aria-label="Controlos">
+        <div>
+          <strong>Jogador 1</strong>
+          <span>A/D mover, W saltar, S+F no ar dispara baixo</span>
+        </div>
+        <div>
+          <strong>Jogador 2</strong>
+          <span>Setas mover/saltar, baixo+/ no ar dispara baixo</span>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="src/game.js"></script>
+  </body>
+</html>
