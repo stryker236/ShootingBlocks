@@ -103,6 +103,12 @@ export class Player {
   }
 
   damage(game) {
+    if (game.isSandbox()) {
+      this.vy = -360;
+      game.addBurst(this.x + this.w / 2, this.y + this.h / 2, this.color, 18);
+      return;
+    }
+
     this.hp -= 1;
     this.alive = this.hp > 0;
     this.vy = -360;
@@ -163,7 +169,7 @@ export class Block {
       this.settled = true;
       game.addBurst(this.x + BLOCK_SIZE / 2, this.y + BLOCK_SIZE, this.color, 8);
 
-      if (this.y < 80) game.gameOver = true;
+      if (!game.isSandbox() && this.y < 80) game.gameOver = true;
     }
 
     for (const player of game.players) {

@@ -21,11 +21,31 @@
           <span class="label">Nivel</span>
           <strong id="level">1</strong>
         </div>
-        <button id="mode" type="button">Single</button>
-        <button id="restart" type="button">Reiniciar</button>
+        <div>
+          <span class="label">Modo</span>
+          <strong id="mode-label">Single</strong>
+        </div>
+        <button id="pause" type="button">Pausar</button>
       </section>
 
-      <canvas id="game" width="960" height="720" aria-label="Shooting Blocks"></canvas>
+      <section id="sandbox-controls" class="sandbox-controls" aria-label="Controlos sandbox" hidden>
+        <label for="sandbox-column">Coluna</label>
+        <select id="sandbox-column"></select>
+        <button id="sandbox-spawn" type="button">Criar bloco</button>
+      </section>
+
+      <section class="stage">
+        <canvas id="game" width="960" height="720" aria-label="Shooting Blocks"></canvas>
+
+        <div id="overlay" class="overlay">
+          <div class="menu-panel">
+            <span id="overlay-kicker" class="label">Shooting Blocks</span>
+            <h1 id="overlay-title">Escolhe o modo</h1>
+            <p id="overlay-copy">Comeca uma run local antes de os blocos encherem a arena.</p>
+            <div id="overlay-actions" class="menu-actions"></div>
+          </div>
+        </div>
+      </section>
 
       <section class="controls" aria-label="Controlos">
         <div>
@@ -35,6 +55,10 @@
         <div>
           <strong>Jogador 2</strong>
           <span>Setas mover/saltar, baixo+/ no ar dispara baixo</span>
+        </div>
+        <div>
+          <strong>Menu</strong>
+          <span>Escape pausa; muda modo ou reinicia apenas em pausa</span>
         </div>
       </section>
     </main>

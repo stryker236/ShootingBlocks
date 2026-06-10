@@ -19,25 +19,161 @@ class Game {
     this.timeEl = document.querySelector("#time");
     this.scoreEl = document.querySelector("#score");
     this.levelEl = document.querySelector("#level");
-    this.modeButton = document.querySelector("#mode");
-    this.restartButton = document.querySelector("#restart");
+    this.modeLabelEl = document.querySelector("#mode-label");
+    this.pauseButton = document.querySelector("#pause");
+    this.overlay = document.querySelector("#overlay");
+    this.overlayKicker = document.querySelector("#overlay-kicker");
+    this.overlayTitle = document.querySelector("#overlay-title");
+    this.overlayCopy = document.querySelector("#overlay-copy");
+    this.overlayActions = document.querySelector("#overlay-actions");
+    this.sandboxControls = document.querySelector("#sandbox-controls");
+    this.sandboxColumn = document.querySelector("#sandbox-column");
+    this.sandboxSpawnButton = document.querySelector("#sandbox-spawn");
     this.input = new Input();
 
-    this.multiplayer = false;
+    this.mode = "single";
+    this.state = "menu";
     this.lastTime = performance.now();
 
-    this.modeButton.addEventListener("click", () => {
-      this.multiplayer = !this.multiplayer;
-      this.reset();
+    this.populateSandboxColumns();
+    this.pauseButton.addEventListener("click", () => this.pause());
+    this.sandboxSpawnButton.addEventListener("click", () => {
+      this.spawnBlock(Number(this.sandboxColumn.value));
     });
-    this.restartButton.addEventListener("click", () => this.reset());
+    window.addEventListener("keydown", (event) => {
+      if (event.code !== "Escape") return;
+      if (this.state === "playing") this.pause();
+      else if (this.state === "paused") this.resume();
+    });
 
-    this.reset();
+    this.resetRun(this.mode);
+    this.renderOverlay();
     requestAnimationFrame((now) => this.frame(now));
   }
 
-  reset() {
-    const activePlayers = this.multiplayer ? PLAYER_TEMPLATES : PLAYER_TEMPLATES.slice(0, 1);
+  populateSandboxColumns() {
+    for (let col = 0; col < COLS; col += 1) {
+      const option = document.createElement("option");
+      option.value = col.toString();
+      option.textContent = `Coluna ${col + 1}`;
+      this.sandboxColumn.append(option);
+    }
+  }
+
+  isSandbox() {
+    return this.mode === "sandbox";
+  }
+
+  modeLabel() {
+    if (this.mode === "multi") return "Multiplayer";
+    if (this.mode === "sandbox") return "Sandbox";
+    return "Single";
+  }
+
+  actionButton(label, onClick) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.addEventListener("click", onClick);
+    return button;
+  }
+
+  setOverlay({ kicker, title, copy, actions }) {
+    this.overlayKicker.textContent = kicker;
+    this.overlayTitle.textContent = title;
+    this.overlayCopy.textContent = copy;
+    this.overlayActions.replaceChildren(...actions);
+    this.overlay.hidden = false;
+  }
+
+  renderOverlay() {
+    if (this.state === "playing") {
+      this.overlay.hidden = true;
+      return;
+    }
+
+    if (this.state === "paused") {
+      this.setOverlay({
+        kicker: this.modeLabel(),
+        title: "Jogo em pausa",
+        copy: "Retoma a run ou muda de modo a partir daqui.",
+        actions: [
+          this.actionButton("Continuar", () => this.resume()),
+          this.actionButton("Reiniciar este modo", () => this.startRun(this.mode)),
+          this.actionButton("Single Player", () => this.startRun("single")),
+          this.actionButton("Multiplayer", () => this.startRun("multi")),
+          this.actionButton("Sandbox", () => this.startRun("sandbox")),
+          this.actionButton("Voltar ao inicio", () => this.openMenu()),
+        ],
+      });
+      return;
+    }
+
+    if (this.state === "gameover") {
+      this.setOverlay({
+        kicker: this.modeLabel(),
+        title: "Fim de jogo",
+        copy: "Reinicia este modo ou volta ao inicio para escolher outro.",
+        actions: [
+          this.actionButton("Reiniciar este modo", () => this.startRun(this.mode)),
+          this.actionButton("Voltar ao inicio", () => this.openMenu()),
+        ],
+      });
+      return;
+    }
+
+    this.setOverlay({
+      kicker: "Shooting Blocks",
+      title: "Escolhe o modo",
+      copy: "Comeca uma run local antes de os blocos encherem a arena.",
+      actions: [
+        this.actionButton("Single Player", () => this.startRun("single")),
+        this.actionButton("Multiplayer", () => this.startRun("multi")),
+        this.actionButton("Sandbox", () => this.startRun("sandbox")),
+      ],
+    });
+  }
+
+  syncUi() {
+    this.modeLabelEl.textContent = this.modeLabel();
+    this.pauseButton.disabled = this.state !== "playing";
+    this.pauseButton.textContent = this.state === "paused" ? "Pausado" : "Pausar";
+    this.sandboxControls.hidden = !this.isSandbox() || this.state !== "playing";
+  }
+
+  openMenu() {
+    this.state = "menu";
+    this.resetRun("single");
+    this.renderOverlay();
+    this.syncUi();
+  }
+
+  startRun(mode) {
+    this.resetRun(mode);
+    this.state = "playing";
+    this.lastTime = performance.now();
+    this.renderOverlay();
+    this.syncUi();
+  }
+
+  pause() {
+    if (this.state !== "playing") return;
+    this.state = "paused";
+    this.renderOverlay();
+    this.syncUi();
+  }
+
+  resume() {
+    if (this.state !== "paused") return;
+    this.state = "playing";
+    this.lastTime = performance.now();
+    this.renderOverlay();
+    this.syncUi();
+  }
+
+  resetRun(mode) {
+    this.mode = mode;
+    const activePlayers = mode === "multi" ? PLAYER_TEMPLATES : PLAYER_TEMPLATES.slice(0, 1);
 
     this.players = activePlayers.map((template) => new Player(template));
     this.bullets = [];
@@ -48,7 +184,7 @@ class Game {
     this.score = 0;
     this.level = 1;
     this.gameOver = false;
-    this.modeButton.textContent = this.multiplayer ? "Multiplayer" : "Single";
+    this.syncUi();
   }
 
   solidBlocks() {
@@ -98,8 +234,8 @@ class Game {
     }
   }
 
-  spawnBlock() {
-    this.blocks.push(new Block(Math.floor(Math.random() * COLS), this.level));
+  spawnBlock(col = Math.floor(Math.random() * COLS)) {
+    this.blocks.push(new Block(col, this.level));
   }
 
   updateBlocks(dt) {
@@ -119,7 +255,7 @@ class Game {
         if (bullet.dead || !rectsOverlap(bullet, block)) continue;
         bullet.dead = true;
         block.hp -= 1;
-        this.score += 25;
+        if (!this.isSandbox()) this.score += 25;
         this.addBurst(bullet.x, bullet.y, bullet.color, 4);
       }
     }
@@ -128,14 +264,14 @@ class Game {
   }
 
   update(dt) {
-    if (this.gameOver) return;
+    if (this.state !== "playing" || this.gameOver) return;
 
     this.elapsed += dt;
-    this.level = 1 + Math.floor(this.elapsed / 18);
-    this.score += dt * 8 * this.level;
+    this.level = this.isSandbox() ? 1 : 1 + Math.floor(this.elapsed / 18);
+    if (!this.isSandbox()) this.score += dt * 8 * this.level;
 
-    this.spawnTimer -= dt;
-    if (this.spawnTimer <= 0) {
+    if (!this.isSandbox()) this.spawnTimer -= dt;
+    if (!this.isSandbox() && this.spawnTimer <= 0) {
       this.spawnBlock();
       this.spawnTimer = Math.max(0.24, 1.35 - this.level * 0.085);
     }
@@ -146,7 +282,7 @@ class Game {
 
     for (const block of this.blocks) {
       if (block.hp <= 0) {
-        this.score += 80;
+        if (!this.isSandbox()) this.score += 80;
         this.addBurst(block.x + block.w / 2, block.y + block.h / 2, block.color, 14);
       }
     }
@@ -159,6 +295,11 @@ class Game {
     this.particles = this.particles.filter((particle) => particle.life > 0);
 
     if (this.players.every((player) => !player.alive)) this.gameOver = true;
+    if (this.gameOver) {
+      this.state = "gameover";
+      this.renderOverlay();
+      this.syncUi();
+    }
   }
 
   drawGrid() {
@@ -218,8 +359,6 @@ class Game {
     for (const bullet of this.bullets) bullet.draw(ctx);
     for (const player of this.players) player.draw(ctx, this.input);
     for (const particle of this.particles) particle.draw(ctx);
-
-    if (this.gameOver) this.drawGameOver();
 
     this.timeEl.textContent = `${this.elapsed.toFixed(1)}s`;
     this.scoreEl.textContent = Math.floor(this.score).toString();
