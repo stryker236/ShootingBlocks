@@ -40,6 +40,7 @@ class Game {
     this.sandboxSpawnButton.addEventListener("click", () => {
       this.spawnBlock(Number(this.sandboxColumn.value));
     });
+    this.canvas.addEventListener("click", (event) => this.spawnSandboxBlockAt(event));
     window.addEventListener("keydown", (event) => {
       if (event.code !== "Escape") return;
       if (this.state === "playing") this.pause();
@@ -234,8 +235,59 @@ class Game {
     }
   }
 
-  spawnBlock(col = Math.floor(Math.random() * COLS)) {
+  availableColumns() {
+    const columns = [];
+    for (let col = 0; col < COLS; col += 1) {
+      if (!this.isColumnFull(col)) columns.push(col);
+    }
+    return columns;
+  }
+
+  isColumnFull(col) {
+    return this.landingYForColumn(col) < 0;
+  }
+
+  randomAvailableColumn() {
+    const columns = this.availableColumns();
+    if (columns.length === 0) return null;
+    return columns[Math.floor(Math.random() * columns.length)];
+  }
+
+  spawnBlock(col = this.randomAvailableColumn()) {
+    if (col === null || this.isColumnFull(col)) return false;
+
     this.blocks.push(new Block(col, this.level));
+    return true;
+  }
+
+  spawnSandboxBlockAt(event) {
+    if (!this.isSandbox() || this.state !== "playing") return;
+
+    const rect = this.canvas.getBoundingClientRect();
+    const canvasX = ((event.clientX - rect.left) / rect.width) * CANVAS_WIDTH;
+    const canvasY = ((event.clientY - rect.top) / rect.height) * CANVAS_HEIGHT;
+    const clickedBlock = this.blockAt(canvasX, canvasY);
+    if (clickedBlock) {
+      clickedBlock.hp = 0;
+      return;
+    }
+
+    if (canvasX < ARENA_LEFT || canvasX >= ARENA_RIGHT) return;
+
+    const col = Math.floor((canvasX - ARENA_LEFT) / BLOCK_SIZE);
+    this.sandboxColumn.value = col.toString();
+    this.spawnBlock(col);
+  }
+
+  blockAt(x, y) {
+    for (let i = this.blocks.length - 1; i >= 0; i -= 1) {
+      const block = this.blocks[i];
+      if (x >= block.x && x <= block.x + block.w && y >= block.y && y <= block.y + block.h) {
+        return block;
+      }
+    }
+
+    return null;
   }
 
   updateBlocks(dt) {
@@ -272,7 +324,7 @@ class Game {
 
     if (!this.isSandbox()) this.spawnTimer -= dt;
     if (!this.isSandbox() && this.spawnTimer <= 0) {
-      this.spawnBlock();
+      if (!this.spawnBlock()) this.gameOver = true;
       this.spawnTimer = Math.max(0.24, 1.35 - this.level * 0.085);
     }
 

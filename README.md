@@ -52,7 +52,7 @@ Choose `Single Player`, `Multiplayer`, or `Sandbox` before the game starts. Duri
 
 ### Sandbox
 
-Sandbox uses Player 1 controls. It disables normal scoring, random block spawning, and survival difficulty. Use the sandbox controls above the canvas to choose a column and create a normal falling block manually.
+Sandbox uses Player 1 controls. It disables normal scoring, random block spawning, and survival difficulty. Click an empty arena column to create a normal falling block, click an existing block to destroy it, or use the sandbox controls above the canvas for precise column spawning.
 
 ## Gameplay Notes
 
