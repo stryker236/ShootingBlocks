@@ -32,6 +32,17 @@
         <label for="sandbox-column">Coluna</label>
         <select id="sandbox-column"></select>
         <button id="sandbox-spawn" type="button">Criar bloco</button>
+        <label class="toggle-control">
+          <input id="sandbox-normal-spawn" type="checkbox" />
+          <span>Spawns normais</span>
+        </label>
+        <label class="toggle-control">
+          <input id="sandbox-auto-level" type="checkbox" />
+          <span>Dificuldade auto</span>
+        </label>
+        <label for="sandbox-level">Nivel</label>
+        <input id="sandbox-level" type="number" min="1" max="99" value="1" />
+        <button id="sandbox-reset" type="button">Limpar sandbox</button>
       </section>
 
       <section class="stage">

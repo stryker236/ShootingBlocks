@@ -149,6 +149,7 @@ export class Block {
     this.h = BLOCK_SIZE;
     this.hp = hp;
     this.maxHp = hp;
+    this.previousY = this.y;
     this.vy = 28 + level * 4;
     this.ay = 380 + level * 34;
     this.maxVy = 430 + level * 42;
@@ -159,6 +160,7 @@ export class Block {
   update(dt, game) {
     if (this.settled || this.hp <= 0) return;
 
+    this.previousY = this.y;
     this.vy = Math.min(this.maxVy, this.vy + this.ay * dt);
     this.y += this.vy * dt;
 
@@ -174,9 +176,32 @@ export class Block {
 
     for (const player of game.players) {
       if (!player.alive || !rectsOverlap(player, this)) continue;
-      player.damage(game);
-      this.hp = 0;
+
+      if (this.hitPlayerFromAbove(player)) {
+        player.damage(game);
+        this.hp = 0;
+      } else {
+        this.pushPlayerAside(player);
+      }
     }
+  }
+
+  hitPlayerFromAbove(player) {
+    const previousBottom = this.previousY + this.h;
+    const horizontalOverlap = this.x < player.x + player.w - 4 && this.x + this.w > player.x + 4;
+
+    return horizontalOverlap && previousBottom <= player.y + 6 && this.y + this.h >= player.y;
+  }
+
+  pushPlayerAside(player) {
+    if (player.x + player.w / 2 < this.x + this.w / 2) {
+      player.x = this.x - player.w;
+    } else {
+      player.x = this.x + this.w;
+    }
+
+    player.x = clamp(player.x, ARENA_LEFT, ARENA_RIGHT - player.w);
+    player.vx = 0;
   }
 
   draw(ctx) {

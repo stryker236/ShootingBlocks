@@ -29,10 +29,19 @@ class Game {
     this.sandboxControls = document.querySelector("#sandbox-controls");
     this.sandboxColumn = document.querySelector("#sandbox-column");
     this.sandboxSpawnButton = document.querySelector("#sandbox-spawn");
+    this.sandboxNormalSpawn = document.querySelector("#sandbox-normal-spawn");
+    this.sandboxAutoLevel = document.querySelector("#sandbox-auto-level");
+    this.sandboxLevelInput = document.querySelector("#sandbox-level");
+    this.sandboxResetButton = document.querySelector("#sandbox-reset");
     this.input = new Input();
 
     this.mode = "single";
     this.state = "menu";
+    this.sandboxSettings = {
+      normalSpawn: false,
+      autoLevel: false,
+      manualLevel: 1,
+    };
     this.lastTime = performance.now();
 
     this.populateSandboxColumns();
@@ -40,6 +49,27 @@ class Game {
     this.sandboxSpawnButton.addEventListener("click", () => {
       this.spawnBlock(Number(this.sandboxColumn.value));
     });
+    this.sandboxNormalSpawn.addEventListener("change", () => {
+      this.sandboxSettings.normalSpawn = this.sandboxNormalSpawn.checked;
+      this.spawnTimer = Math.min(this.spawnTimer, 0.2);
+    });
+    this.sandboxAutoLevel.addEventListener("change", () => {
+      this.sandboxSettings.autoLevel = this.sandboxAutoLevel.checked;
+      if (!this.sandboxSettings.autoLevel) this.sandboxSettings.manualLevel = this.level;
+      this.syncUi();
+    });
+    this.sandboxLevelInput.addEventListener("input", () => {
+      if (this.sandboxLevelInput.value === "") return;
+
+      this.sandboxSettings.manualLevel = this.sandboxLevelValue();
+      if (this.isSandbox() && !this.sandboxSettings.autoLevel) this.level = this.sandboxSettings.manualLevel;
+    });
+    this.sandboxLevelInput.addEventListener("blur", () => {
+      this.sandboxSettings.manualLevel = this.sandboxLevelValue();
+      this.level = this.sandboxSettings.manualLevel;
+      this.syncUi();
+    });
+    this.sandboxResetButton.addEventListener("click", () => this.resetSandbox());
     this.canvas.addEventListener("click", (event) => this.spawnSandboxBlockAt(event));
     window.addEventListener("keydown", (event) => {
       if (event.code !== "Escape") return;
@@ -140,6 +170,12 @@ class Game {
     this.pauseButton.disabled = this.state !== "playing";
     this.pauseButton.textContent = this.state === "paused" ? "Pausado" : "Pausar";
     this.sandboxControls.hidden = !this.isSandbox() || this.state !== "playing";
+    this.sandboxNormalSpawn.checked = this.sandboxSettings.normalSpawn;
+    this.sandboxAutoLevel.checked = this.sandboxSettings.autoLevel;
+    this.sandboxLevelInput.disabled = this.sandboxSettings.autoLevel;
+    if (document.activeElement !== this.sandboxLevelInput || this.sandboxSettings.autoLevel) {
+      this.sandboxLevelInput.value = this.level.toString();
+    }
   }
 
   openMenu() {
@@ -172,6 +208,15 @@ class Game {
     this.syncUi();
   }
 
+  resetSandbox() {
+    if (!this.isSandbox()) return;
+    this.resetRun("sandbox");
+    this.state = "playing";
+    this.lastTime = performance.now();
+    this.renderOverlay();
+    this.syncUi();
+  }
+
   resetRun(mode) {
     this.mode = mode;
     const activePlayers = mode === "multi" ? PLAYER_TEMPLATES : PLAYER_TEMPLATES.slice(0, 1);
@@ -185,7 +230,14 @@ class Game {
     this.score = 0;
     this.level = 1;
     this.gameOver = false;
+    if (this.isSandbox()) this.level = this.sandboxSettings.autoLevel ? 1 : this.sandboxSettings.manualLevel;
     this.syncUi();
+  }
+
+  sandboxLevelValue() {
+    const parsed = Number(this.sandboxLevelInput.value);
+    if (!Number.isFinite(parsed)) return 1;
+    return Math.max(1, Math.min(99, Math.floor(parsed)));
   }
 
   solidBlocks() {
@@ -319,12 +371,22 @@ class Game {
     if (this.state !== "playing" || this.gameOver) return;
 
     this.elapsed += dt;
-    this.level = this.isSandbox() ? 1 : 1 + Math.floor(this.elapsed / 18);
+    if (this.isSandbox()) {
+      this.level = this.sandboxSettings.autoLevel
+        ? 1 + Math.floor(this.elapsed / 18)
+        : this.sandboxSettings.manualLevel;
+      if (this.sandboxSettings.autoLevel || document.activeElement !== this.sandboxLevelInput) {
+        this.sandboxLevelInput.value = this.level.toString();
+      }
+    } else {
+      this.level = 1 + Math.floor(this.elapsed / 18);
+    }
     if (!this.isSandbox()) this.score += dt * 8 * this.level;
 
-    if (!this.isSandbox()) this.spawnTimer -= dt;
-    if (!this.isSandbox() && this.spawnTimer <= 0) {
-      if (!this.spawnBlock()) this.gameOver = true;
+    const shouldAutoSpawn = !this.isSandbox() || this.sandboxSettings.normalSpawn;
+    if (shouldAutoSpawn) this.spawnTimer -= dt;
+    if (shouldAutoSpawn && this.spawnTimer <= 0) {
+      if (!this.spawnBlock() && !this.isSandbox()) this.gameOver = true;
       this.spawnTimer = Math.max(0.24, 1.35 - this.level * 0.085);
     }
 

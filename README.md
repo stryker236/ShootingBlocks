@@ -52,7 +52,7 @@ Choose `Single Player`, `Multiplayer`, or `Sandbox` before the game starts. Duri
 
 ### Sandbox
 
-Sandbox uses Player 1 controls. It disables normal scoring, random block spawning, and survival difficulty. Click an empty arena column to create a normal falling block, click an existing block to destroy it, or use the sandbox controls above the canvas for precise column spawning.
+Sandbox uses Player 1 controls. It disables normal scoring and survival game-over pressure by default. Click an empty arena column to create a normal falling block, click an existing block to destroy it, or use the sandbox controls above the canvas for precise column spawning. Sandbox can also run normal block spawning, use a manually selected level, let difficulty increase over time like a normal run, or reset immediately from the sandbox controls.
 
 ## Gameplay Notes
 
@@ -60,7 +60,7 @@ Sandbox uses Player 1 controls. It disables normal scoring, random block spawnin
 - Destroying a support block can release unsupported blocks above it.
 - The level increases over time, making blocks spawn faster and fall harder.
 - The run ends when every active player is out of HP or a block stack reaches the danger height.
-- Sandbox mode keeps the level at 1 and does not end from stack overflow.
+- Sandbox mode does not end from stack overflow, and its spawning/difficulty controls can be changed while it is running.
 
 ## Project Docs
 
