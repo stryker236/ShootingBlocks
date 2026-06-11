@@ -1,18 +1,27 @@
 import {
   ARENA_LEFT,
   ARENA_RIGHT,
+  BLOCK_CLASSES,
+  BLOCK_CLASS_ORDER,
   BLOCK_SIZE,
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
   COLS,
   FLOOR,
+  MAX_ACTIVE_BLOCKS,
+  PICKUP_CRUSH_DESTROY_CHANCE,
   PLAYER_TEMPLATES,
+  DROPPABLE_WEAPONS,
   WEAPON_ORDER,
   WEAPONS,
 } from "./constants.js";
-import { Block, Particle, Player } from "./entities.js";
+import { Block, Particle, Pickup, Player } from "./entities.js";
 import { Input } from "./input.js";
 import { rectsOverlap } from "./utils.js";
+
+const LEADERBOARD_KEY = "shooting-blocks-leaderboard";
+const PLAYER_NAME_KEY = "shooting-blocks-player-name";
+const MAX_LEADERBOARD_ENTRIES = 10;
 
 class Game {
   constructor() {
@@ -40,6 +49,9 @@ class Game {
     this.sandboxAutoLevel = document.querySelector("#sandbox-auto-level");
     this.sandboxLevelInput = document.querySelector("#sandbox-level");
     this.sandboxResetButton = document.querySelector("#sandbox-reset");
+    this.leaderboardList = document.querySelector("#leaderboard-list");
+    this.leaderboardEmpty = document.querySelector("#leaderboard-empty");
+    this.leaderboardClearButton = document.querySelector("#leaderboard-clear");
     this.input = new Input();
 
     this.mode = "single";
@@ -93,6 +105,10 @@ class Game {
       this.syncUi();
     });
     this.sandboxResetButton.addEventListener("click", () => this.resetSandbox());
+    this.leaderboardClearButton.addEventListener("click", () => {
+      localStorage.removeItem(LEADERBOARD_KEY);
+      this.renderLeaderboard();
+    });
     this.canvas.addEventListener("click", (event) => this.spawnSandboxBlockAt(event));
     window.addEventListener("keydown", (event) => {
       if (event.code !== "Escape") return;
@@ -103,6 +119,7 @@ class Game {
     });
 
     this.resetRun(this.mode);
+    this.renderLeaderboard();
     this.renderOverlay();
     requestAnimationFrame((now) => this.frame(now));
   }
@@ -143,6 +160,81 @@ class Game {
     return button;
   }
 
+  leaderboardEntries() {
+    try {
+      const entries = JSON.parse(localStorage.getItem(LEADERBOARD_KEY) ?? "[]");
+      return Array.isArray(entries) ? entries : [];
+    } catch {
+      return [];
+    }
+  }
+
+  saveLeaderboard(entries) {
+    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries.slice(0, MAX_LEADERBOARD_ENTRIES)));
+  }
+
+  renderLeaderboard() {
+    const entries = this.leaderboardEntries();
+    this.leaderboardList.replaceChildren(
+      ...entries.map((entry) => {
+        const item = document.createElement("li");
+        const name = document.createElement("strong");
+        const details = document.createElement("span");
+
+        name.textContent = entry.name;
+        details.textContent = `${entry.score} pontos - ${entry.mode}`;
+        item.append(name, details);
+        return item;
+      }),
+    );
+    this.leaderboardEmpty.hidden = entries.length > 0;
+  }
+
+  submitScore(name) {
+    if (this.scoreSubmitted || this.isSandbox()) return;
+
+    const cleanName = name.trim().slice(0, 18) || "Player";
+    const score = Math.floor(this.score);
+    const entries = [
+      ...this.leaderboardEntries(),
+      {
+        name: cleanName,
+        score,
+        mode: this.modeLabel(),
+        date: new Date().toISOString(),
+      },
+    ].sort((a, b) => b.score - a.score);
+
+    localStorage.setItem(PLAYER_NAME_KEY, cleanName);
+    this.saveLeaderboard(entries);
+    this.scoreSubmitted = true;
+    this.renderLeaderboard();
+    this.renderOverlay();
+  }
+
+  scoreForm() {
+    const form = document.createElement("form");
+    const input = document.createElement("input");
+    const button = document.createElement("button");
+
+    form.className = "score-form";
+    input.type = "text";
+    input.name = "name";
+    input.maxLength = 18;
+    input.placeholder = "O teu nome";
+    input.value = localStorage.getItem(PLAYER_NAME_KEY) ?? "";
+    button.type = "submit";
+    button.textContent = "Guardar pontuacao";
+
+    form.append(input, button);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      this.submitScore(input.value);
+    });
+
+    return form;
+  }
+
   setOverlay({ kicker, title, copy, actions }) {
     this.overlayKicker.textContent = kicker;
     this.overlayTitle.textContent = title;
@@ -175,14 +267,19 @@ class Game {
     }
 
     if (this.state === "gameover") {
+      const actions = [
+        this.actionButton("Reiniciar este modo", () => this.startRun(this.mode)),
+        this.actionButton("Voltar ao inicio", () => this.openMenu()),
+      ];
+      if (!this.scoreSubmitted && !this.isSandbox()) actions.unshift(this.scoreForm());
+
       this.setOverlay({
         kicker: this.modeLabel(),
         title: "Fim de jogo",
-        copy: "Reinicia este modo ou volta ao inicio para escolher outro.",
-        actions: [
-          this.actionButton("Reiniciar este modo", () => this.startRun(this.mode)),
-          this.actionButton("Voltar ao inicio", () => this.openMenu()),
-        ],
+        copy: this.scoreSubmitted
+          ? "Pontuacao guardada. Reinicia este modo ou volta ao inicio para escolher outro."
+          : "Escreve o teu nome para guardar esta pontuacao localmente.",
+        actions,
       });
       return;
     }
@@ -272,12 +369,14 @@ class Game {
     this.players = activePlayers.map((template) => new Player(template));
     this.bullets = [];
     this.blocks = [];
+    this.pickups = [];
     this.particles = [];
     this.spawnTimer = 0.8;
     this.elapsed = 0;
     this.score = 0;
     this.level = 1;
     this.gameOver = false;
+    this.scoreSubmitted = false;
     if (this.isSandbox()) this.level = this.sandboxSettings.autoLevel ? 1 : this.sandboxSettings.manualLevel;
     this.applySandboxWeapon();
     this.syncUi();
@@ -313,6 +412,14 @@ class Game {
     player.ammo -= 1;
     this.syncUi();
     return true;
+  }
+
+  handleAmmoDepleted(player) {
+    if (this.isInfiniteAmmo() || player.weaponKey === "default" || player.ammo > 0) return;
+
+    player.setWeapon("default");
+    if (this.isSandbox() && player === this.players[0]) this.sandboxSettings.weapon = "default";
+    this.syncUi();
   }
 
   sandboxLevelValue() {
@@ -386,10 +493,64 @@ class Game {
     return columns[Math.floor(Math.random() * columns.length)];
   }
 
-  spawnBlock(col = this.randomAvailableColumn()) {
+  playerHasNonDefaultWeapon() {
+    return this.players.some((player) => player.weaponKey !== "default");
+  }
+
+  missingPlayerHealth() {
+    return this.players.reduce((missing, player) => missing + Math.max(0, player.maxHp - player.hp), 0);
+  }
+
+  longestNonDefaultWeaponHold() {
+    return this.players.reduce((longest, player) => {
+      if (player.weaponKey === "default") return longest;
+      return Math.max(longest, player.weaponHeldTime);
+    }, 0);
+  }
+
+  currentBlockWeights() {
+    const weights = {};
+    for (const classKey of BLOCK_CLASS_ORDER) {
+      const blockClass = BLOCK_CLASSES[classKey];
+      const activeCount = this.blocks.filter((block) => block.classKey === classKey).length;
+      weights[classKey] = activeCount >= blockClass.maxActive ? 0 : blockClass.weight;
+    }
+
+    if (this.playerHasNonDefaultWeapon() && weights.weapon > 0) {
+      weights.weapon = Math.max(1, Math.floor(weights.weapon * 0.18));
+    }
+
+    const weaponHoldTime = this.longestNonDefaultWeaponHold();
+    if (weaponHoldTime > 0 && weights.ammo > 0) {
+      const ammoFactor = Math.max(0.15, 1 - weaponHoldTime / 28);
+      weights.ammo = Math.max(1, Math.floor(weights.ammo * ammoFactor));
+    }
+
+    const missingHealth = this.missingPlayerHealth();
+    if (missingHealth > 0 && weights.health > 0) weights.health += missingHealth * 12;
+
+    return weights;
+  }
+
+  weightedBlockClass() {
+    const weights = this.currentBlockWeights();
+    const totalWeight = BLOCK_CLASS_ORDER.reduce((sum, classKey) => sum + weights[classKey], 0);
+    if (totalWeight <= 0) return null;
+
+    let roll = Math.random() * totalWeight;
+    for (const classKey of BLOCK_CLASS_ORDER) {
+      roll -= weights[classKey];
+      if (roll <= 0) return classKey;
+    }
+    return "normal";
+  }
+
+  spawnBlock(col = this.randomAvailableColumn(), classKey = this.weightedBlockClass()) {
+    if (this.blocks.length >= MAX_ACTIVE_BLOCKS) return false;
+    if (!classKey) return false;
     if (col === null || this.isColumnFull(col)) return false;
 
-    this.blocks.push(new Block(col, this.level));
+    this.blocks.push(new Block(col, this.level, classKey));
     return true;
   }
 
@@ -449,6 +610,143 @@ class Game {
     this.bullets = this.bullets.filter((bullet) => !bullet.dead);
   }
 
+  pickupStackKey(config) {
+    return `${config.type}:${config.weaponKey ?? ""}`;
+  }
+
+  addPickup(config) {
+    const stackKey = this.pickupStackKey(config);
+    const existingPickup = this.pickups.find((pickup) => {
+      if (pickup.collected || pickup.destroyed || pickup.stackKey !== stackKey) return false;
+      return Math.abs(pickup.x - config.x) < 18 && Math.abs(pickup.y - config.y) < 18;
+    });
+
+    if (existingPickup) {
+      existingPickup.stack += 1;
+      existingPickup.amount = (existingPickup.amount ?? 0) + (config.amount ?? 0);
+      existingPickup.floorLife = Math.max(existingPickup.floorLife, config.floorLife ?? existingPickup.floorLife);
+      return existingPickup;
+    }
+
+    const pickup = new Pickup({
+      ...config,
+      stackKey,
+    });
+    this.pickups.push(pickup);
+    return pickup;
+  }
+
+  canStackPickups(a, b) {
+    if (a === b || a.collected || b.collected || a.destroyed || b.destroyed) return false;
+    if (!a.grounded || !b.grounded || a.stackKey !== b.stackKey) return false;
+
+    const aCenterX = a.x + a.w / 2;
+    const bCenterX = b.x + b.w / 2;
+    const aCenterY = a.y + a.h / 2;
+    const bCenterY = b.y + b.h / 2;
+
+    return Math.abs(aCenterX - bCenterX) <= 24 && Math.abs(aCenterY - bCenterY) <= 8;
+  }
+
+  mergePickupInto(target, source) {
+    target.stack += source.stack;
+    target.amount = (target.amount ?? 0) + (source.amount ?? 0);
+    target.floorLife = Math.max(target.floorLife, source.floorLife);
+    source.collected = true;
+  }
+
+  mergePickupStacks() {
+    for (let i = 0; i < this.pickups.length; i += 1) {
+      const target = this.pickups[i];
+      if (target.collected || target.destroyed) continue;
+
+      for (let j = i + 1; j < this.pickups.length; j += 1) {
+        const source = this.pickups[j];
+        if (!this.canStackPickups(target, source)) continue;
+        this.mergePickupInto(target, source);
+      }
+    }
+
+    this.pickups = this.pickups.filter((pickup) => !pickup.collected);
+  }
+
+  dropFromBlock(block) {
+    const { drop } = block.blockClass;
+    if (!drop) return;
+
+    if (drop === "weapon") {
+      const weaponKey = DROPPABLE_WEAPONS[Math.floor(Math.random() * DROPPABLE_WEAPONS.length)];
+      this.addPickup({
+        type: "weapon",
+        weaponKey,
+        x: block.x + block.w / 2 - 14,
+        y: block.y + block.h / 2 - 14,
+        color: "#54d5a7",
+        label: "W",
+      });
+      return;
+    }
+
+    if (drop === "ammo") {
+      this.addPickup({
+        type: "ammo",
+        amount: block.blockClass.ammoAmount,
+        x: block.x + block.w / 2 - 14,
+        y: block.y + block.h / 2 - 14,
+        color: "#ffd166",
+        label: "+",
+      });
+      return;
+    }
+
+    if (drop === "health") {
+      this.addPickup({
+        type: "health",
+        amount: block.blockClass.healAmount,
+        x: block.x + block.w / 2 - 14,
+        y: block.y + block.h / 2 - 14,
+        color: "#ff6b6b",
+        label: "H",
+      });
+    }
+  }
+
+  updatePickups(dt) {
+    const solidBlocks = this.solidBlocks();
+    for (const pickup of this.pickups) pickup.update(dt, solidBlocks);
+    this.pickups = this.pickups.filter((pickup) => pickup.floorLife > 0);
+    this.mergePickupStacks();
+
+    for (const pickup of this.pickups) {
+      for (const player of this.players) {
+        if (!player.alive || pickup.collected || !rectsOverlap(player, pickup)) continue;
+        this.collectPickup(player, pickup);
+      }
+    }
+
+    this.pickups = this.pickups.filter((pickup) => !pickup.collected);
+  }
+
+  collectPickup(player, pickup) {
+    pickup.collected = true;
+    if (pickup.type === "weapon") {
+      player.setWeapon(pickup.weaponKey);
+      this.addBurst(pickup.x + pickup.w / 2, pickup.y + pickup.h / 2, pickup.color, 12);
+      return;
+    }
+
+    if (pickup.type === "ammo" && player.weaponKey !== "default") {
+      player.ammo += pickup.amount;
+      this.addBurst(pickup.x + pickup.w / 2, pickup.y + pickup.h / 2, pickup.color, 10);
+      return;
+    }
+
+    if (pickup.type === "health") {
+      player.heal(pickup.amount);
+      this.addBurst(pickup.x + pickup.w / 2, pickup.y + pickup.h / 2, pickup.color, 12);
+    }
+  }
+
   crushAdjacentBlocks(originBlock) {
     const adjacentBlocks = this.blocks.filter((block) => {
       if (block === originBlock || block.hp <= 0) return false;
@@ -487,24 +785,29 @@ class Game {
     const shouldAutoSpawn = !this.isSandbox() || this.sandboxSettings.normalSpawn;
     if (shouldAutoSpawn) this.spawnTimer -= dt;
     if (shouldAutoSpawn && this.spawnTimer <= 0) {
-      if (!this.spawnBlock() && !this.isSandbox()) this.gameOver = true;
+      const spawned = this.spawnBlock();
+      if (!spawned && !this.isSandbox() && this.availableColumns().length === 0) this.gameOver = true;
       this.spawnTimer = Math.max(0.24, 1.35 - this.level * 0.085);
     }
 
     for (const player of this.players) player.update(dt, this);
     this.updateBlocks(dt);
+    this.resolvePickupBlockImpacts();
     this.updateBullets(dt);
 
     for (const block of this.blocks) {
       if (block.hp <= 0) {
         if (!this.isSandbox()) this.score += 80;
         this.addBurst(block.x + block.w / 2, block.y + block.h / 2, block.color, 14);
+        this.dropFromBlock(block);
       }
     }
 
     const hadDestroyedBlocks = this.blocks.some((block) => block.hp <= 0);
     this.blocks = this.blocks.filter((block) => block.hp > 0);
     if (hadDestroyedBlocks) this.releaseUnsupportedBlocks();
+
+    this.updatePickups(dt);
 
     for (const particle of this.particles) particle.update(dt);
     this.particles = this.particles.filter((particle) => particle.life > 0);
@@ -514,6 +817,50 @@ class Game {
       this.renderOverlay();
       this.syncUi();
     }
+  }
+
+  resolvePickupBlockImpacts() {
+    for (const pickup of this.pickups) {
+      if (pickup.collected || pickup.destroyed) continue;
+
+      for (const block of this.blocks) {
+        if (block.settled || block.hp <= 0 || !rectsOverlap(pickup, block)) continue;
+        if (!this.blockHitPickupFromAbove(block, pickup)) continue;
+
+        if (Math.random() < PICKUP_CRUSH_DESTROY_CHANCE || !this.knockPickupAside(pickup, block)) {
+          pickup.destroyed = true;
+          this.addBurst(pickup.x + pickup.w / 2, pickup.y + pickup.h / 2, pickup.color, 8);
+        }
+        break;
+      }
+    }
+
+    this.pickups = this.pickups.filter((pickup) => !pickup.destroyed);
+  }
+
+  blockHitPickupFromAbove(block, pickup) {
+    const previousBottom = block.previousY + block.h;
+    const horizontalOverlap = block.x < pickup.x + pickup.w && block.x + block.w > pickup.x;
+    return horizontalOverlap && previousBottom <= pickup.y + 6 && block.y + block.h >= pickup.y;
+  }
+
+  knockPickupAside(pickup, block) {
+    const directions = pickup.x + pickup.w / 2 < block.x + block.w / 2 ? [-1, 1] : [1, -1];
+
+    for (const direction of directions) {
+      const nextX = pickup.x + direction * BLOCK_SIZE;
+      if (nextX < ARENA_LEFT || nextX + pickup.w > ARENA_RIGHT) continue;
+
+      const candidate = { ...pickup, x: nextX };
+      const blocked = this.blocks.some((otherBlock) => otherBlock.hp > 0 && rectsOverlap(candidate, otherBlock));
+      if (blocked) continue;
+
+      pickup.x = nextX;
+      pickup.vy = -120;
+      return true;
+    }
+
+    return false;
   }
 
   drawGrid() {
@@ -570,6 +917,7 @@ class Game {
     ctx.fillRect(ARENA_LEFT, FLOOR - 4, COLS * BLOCK_SIZE, 4);
 
     for (const block of this.blocks) block.draw(ctx);
+    for (const pickup of this.pickups) pickup.draw(ctx);
     for (const bullet of this.bullets) bullet.draw(ctx);
     for (const player of this.players) player.draw(ctx, this.input);
     for (const particle of this.particles) particle.draw(ctx);

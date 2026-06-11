@@ -1,4 +1,13 @@
-import { ARENA_LEFT, ARENA_RIGHT, BLOCK_SIZE, FLOOR, GRAVITY, WEAPONS } from "./constants.js";
+import {
+  ARENA_LEFT,
+  ARENA_RIGHT,
+  BLOCK_CLASSES,
+  BLOCK_SIZE,
+  FLOOR,
+  GRAVITY,
+  PICKUP_FLOOR_TIMEOUT,
+  WEAPONS,
+} from "./constants.js";
 import { clamp, rectsOverlap } from "./utils.js";
 
 export class Player {
@@ -12,13 +21,15 @@ export class Player {
     this.aim = template.id === 1 ? 1 : -1;
     this.w = 30;
     this.h = 38;
-    this.hp = 3;
+    this.maxHp = 3;
+    this.hp = this.maxHp;
     this.cooldown = 0;
     this.weaponKey = "default";
     this.ammo = Infinity;
     this.burstShotsRemaining = 0;
     this.burstTimer = 0;
     this.respawnTimer = 0;
+    this.weaponHeldTime = 0;
     this.grounded = true;
     this.alive = true;
   }
@@ -31,6 +42,7 @@ export class Player {
     }
 
     this.previousY = this.y;
+    this.weaponHeldTime += dt;
 
     const move = (game.input.isDown(this.right) ? 1 : 0) - (game.input.isDown(this.left) ? 1 : 0);
     this.vx = move * 260;
@@ -119,7 +131,10 @@ export class Player {
     this.fireBullet(game, weapon);
     this.burstShotsRemaining -= 1;
     this.burstTimer = weapon.burstInterval;
-    if (this.burstShotsRemaining === 0) this.cooldown = weapon.cooldown;
+    if (this.burstShotsRemaining === 0) {
+      this.cooldown = weapon.cooldown;
+      game.handleAmmoDepleted(this);
+    }
   }
 
   fireBullet(game, weapon) {
@@ -141,16 +156,22 @@ export class Player {
         color: this.color,
       }),
     );
+    if (weapon.burstCount === 1) game.handleAmmoDepleted(this);
   }
 
   setWeapon(weaponKey) {
     if (!WEAPONS[weaponKey]) return;
 
+    if (this.weaponKey !== weaponKey) this.weaponHeldTime = 0;
     this.weaponKey = weaponKey;
     this.ammo = WEAPONS[weaponKey].ammo;
     this.cooldown = 0;
     this.burstShotsRemaining = 0;
     this.burstTimer = 0;
+  }
+
+  heal(amount) {
+    this.hp = Math.min(this.maxHp, this.hp + amount);
   }
 
   damage(game) {
@@ -173,10 +194,11 @@ export class Player {
     this.previousY = this.y;
     this.vx = 0;
     this.vy = 0;
-    this.hp = 3;
+    this.hp = this.maxHp;
     this.cooldown = 0;
     this.burstShotsRemaining = 0;
     this.burstTimer = 0;
+    this.weaponHeldTime = 0;
     this.grounded = true;
     this.alive = true;
     game.addBurst(this.x + this.w / 2, this.y + this.h / 2, this.color, 16);
@@ -207,9 +229,12 @@ export class Player {
 }
 
 export class Block {
-  constructor(col, level) {
-    const hp = 2 + Math.floor(level / 4);
+  constructor(col, level, classKey = "normal") {
+    const blockClass = BLOCK_CLASSES[classKey] ?? BLOCK_CLASSES.normal;
+    const hp = 2 + Math.floor(level / 4) + blockClass.hpBonus;
     this.col = col;
+    this.classKey = classKey;
+    this.blockClass = blockClass;
     this.x = ARENA_LEFT + col * BLOCK_SIZE;
     this.y = -BLOCK_SIZE;
     this.w = BLOCK_SIZE;
@@ -221,7 +246,7 @@ export class Block {
     this.ay = 380 + level * 34;
     this.maxVy = 430 + level * 42;
     this.settled = false;
-    this.color = Math.random() < 0.34 ? "#5bbcff" : Math.random() < 0.5 ? "#c084fc" : "#ff8a5b";
+    this.color = blockClass.color;
   }
 
   update(dt, game) {
@@ -281,6 +306,11 @@ export class Block {
 
     ctx.fillStyle = "rgba(0,0,0,0.18)";
     ctx.fillRect(this.x + 8, this.y + 8, this.w - 16, 6);
+    ctx.fillStyle = "rgba(255,255,255,0.88)";
+    ctx.font = "800 18px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(this.blockClass.name[0], this.x + this.w / 2, this.y + this.h / 2 + 7);
+    ctx.textAlign = "left";
 
     const cracks = this.maxHp - this.hp;
     ctx.strokeStyle = "rgba(0,0,0,0.38)";
@@ -290,6 +320,78 @@ export class Block {
       ctx.moveTo(px, this.y + 10);
       ctx.lineTo(px + 12, this.y + this.h - 8);
       ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+export class Pickup {
+  constructor(config) {
+    Object.assign(this, config);
+    this.w = 28;
+    this.h = 28;
+    this.vy = -90;
+    this.floorLife = PICKUP_FLOOR_TIMEOUT;
+    this.stack = this.stack ?? 1;
+    this.previousY = this.y;
+    this.grounded = false;
+  }
+
+  update(dt, solidBlocks = []) {
+    this.previousY = this.y;
+    this.grounded = false;
+    this.vy = Math.min(420, this.vy + 760 * dt);
+    this.y += this.vy * dt;
+    this.resolveLanding(solidBlocks);
+    if (this.grounded && Math.abs(this.y + this.h - FLOOR) < 0.5) {
+      this.floorLife -= dt;
+    }
+  }
+
+  resolveLanding(solidBlocks) {
+    let landingY = this.y;
+    let landed = false;
+
+    if (this.y + this.h >= FLOOR) {
+      landingY = FLOOR - this.h;
+      landed = true;
+    }
+
+    for (const block of solidBlocks) {
+      const overlapsX = this.x < block.x + block.w && this.x + this.w > block.x;
+      const crossedTop = this.previousY + this.h <= block.y + 4 && this.y + this.h >= block.y;
+      if (!overlapsX || !crossedTop) continue;
+
+      landingY = landed ? Math.min(landingY, block.y - this.h) : block.y - this.h;
+      landed = true;
+    }
+
+    if (!landed) return;
+
+    this.y = landingY;
+    this.vy = 0;
+    this.grounded = true;
+  }
+
+  draw(ctx) {
+    ctx.save();
+    ctx.fillStyle = this.color;
+    ctx.strokeStyle = "rgba(255,255,255,0.8)";
+    ctx.lineWidth = 2;
+    ctx.fillRect(this.x, this.y, this.w, this.h);
+    ctx.strokeRect(this.x, this.y, this.w, this.h);
+    ctx.fillStyle = "#10131a";
+    ctx.font = "800 16px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(this.label, this.x + this.w / 2, this.y + 20);
+    if (this.stack > 1) {
+      ctx.fillStyle = "#10131a";
+      ctx.fillRect(this.x + this.w - 15, this.y - 6, 22, 14);
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.strokeRect(this.x + this.w - 15, this.y - 6, 22, 14);
+      ctx.fillStyle = "#eef3f8";
+      ctx.font = "800 10px system-ui, sans-serif";
+      ctx.fillText(`x${this.stack}`, this.x + this.w - 4, this.y + 5);
     }
     ctx.restore();
   }

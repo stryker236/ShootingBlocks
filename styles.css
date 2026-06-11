@@ -112,6 +112,17 @@ input[type="number"] {
   padding: 0 10px;
 }
 
+input[type="text"] {
+  min-height: 46px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  padding: 0 12px;
+}
+
 .toggle-control {
   min-height: 38px;
   display: flex;
@@ -211,6 +222,68 @@ canvas {
   gap: 8px;
 }
 
+.score-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.leaderboard {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 14px;
+}
+
+.leaderboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.leaderboard h2 {
+  margin: 2px 0 0;
+  font-size: 1.1rem;
+  letter-spacing: 0;
+}
+
+.leaderboard-header button {
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.leaderboard ol {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 24px;
+}
+
+.leaderboard li {
+  padding: 6px 0;
+}
+
+.leaderboard li::marker {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.leaderboard li strong {
+  display: inline-block;
+  min-width: 140px;
+}
+
+.leaderboard li span {
+  color: var(--muted);
+}
+
+.leaderboard p {
+  margin: 0;
+  color: var(--muted);
+}
+
 @media (max-width: 720px) {
   body {
     padding: 10px;
@@ -223,5 +296,14 @@ canvas {
   .controls,
   .sandbox-controls {
     grid-template-columns: 1fr;
+  }
+
+  .score-form {
+    grid-template-columns: 1fr;
+  }
+
+  .leaderboard-header {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

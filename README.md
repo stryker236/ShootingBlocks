@@ -69,10 +69,23 @@ Sandbox uses Player 1 controls. It disables normal scoring and survival game-ove
 
 Sandbox includes a weapon selector for testing the current weapon set.
 
+## Block Classes
+
+Blocks are class-based so new block features can be added through config and small behavior hooks. Current classes:
+
+- `Normal`: a standard falling block.
+- `Weapon`: drops a random non-default weapon pickup when destroyed.
+- `Ammo`: drops an ammo pickup when destroyed. Ammo pickups add bullets to the player's current weapon, but do nothing for the default weapon.
+
+This structure is meant to expand into more block features later, such as heavy blocks, explosive blocks, supply blocks, or other class-specific drops.
+
 ## Gameplay Notes
 
 - Falling blocks damage players on contact.
 - Destroying a support block can release unsupported blocks above it.
+- Weapon and ammo block classes can drop pickups when destroyed.
+- Finite weapons return to `Default` when their bullets run out.
+- Pickups hit from above by falling blocks try to move sideways; if there is no open side space, they are destroyed.
 - The level increases over time, making blocks spawn faster and fall harder.
 - The run ends when a block stack reaches the danger height.
 - Sandbox mode does not end from stack overflow, and its spawning/difficulty controls can be changed while it is running.
