@@ -7,6 +7,8 @@ import {
   COLS,
   FLOOR,
   PLAYER_TEMPLATES,
+  WEAPON_ORDER,
+  WEAPONS,
 } from "./constants.js";
 import { Block, Particle, Player } from "./entities.js";
 import { Input } from "./input.js";
@@ -20,6 +22,8 @@ class Game {
     this.scoreEl = document.querySelector("#score");
     this.levelEl = document.querySelector("#level");
     this.modeLabelEl = document.querySelector("#mode-label");
+    this.weaponLabelEl = document.querySelector("#weapon-label");
+    this.ammoLabelEl = document.querySelector("#ammo-label");
     this.pauseButton = document.querySelector("#pause");
     this.overlay = document.querySelector("#overlay");
     this.overlayKicker = document.querySelector("#overlay-kicker");
@@ -29,6 +33,9 @@ class Game {
     this.sandboxControls = document.querySelector("#sandbox-controls");
     this.sandboxColumn = document.querySelector("#sandbox-column");
     this.sandboxSpawnButton = document.querySelector("#sandbox-spawn");
+    this.sandboxWeapon = document.querySelector("#sandbox-weapon");
+    this.sandboxInfiniteAmmo = document.querySelector("#sandbox-infinite-ammo");
+    this.sandboxInvincible = document.querySelector("#sandbox-invincible");
     this.sandboxNormalSpawn = document.querySelector("#sandbox-normal-spawn");
     this.sandboxAutoLevel = document.querySelector("#sandbox-auto-level");
     this.sandboxLevelInput = document.querySelector("#sandbox-level");
@@ -41,13 +48,29 @@ class Game {
       normalSpawn: false,
       autoLevel: false,
       manualLevel: 1,
+      weapon: "default",
+      infiniteAmmo: true,
+      invincible: true,
     };
     this.lastTime = performance.now();
 
     this.populateSandboxColumns();
-    this.pauseButton.addEventListener("click", () => this.pause());
+    this.populateSandboxWeapons();
+    this.pauseButton.addEventListener("click", () => this.togglePause());
     this.sandboxSpawnButton.addEventListener("click", () => {
       this.spawnBlock(Number(this.sandboxColumn.value));
+    });
+    this.sandboxWeapon.addEventListener("change", () => {
+      this.sandboxSettings.weapon = this.sandboxWeapon.value;
+      this.applySandboxWeapon();
+      this.syncUi();
+    });
+    this.sandboxInfiniteAmmo.addEventListener("change", () => {
+      this.sandboxSettings.infiniteAmmo = this.sandboxInfiniteAmmo.checked;
+      this.syncUi();
+    });
+    this.sandboxInvincible.addEventListener("change", () => {
+      this.sandboxSettings.invincible = this.sandboxInvincible.checked;
     });
     this.sandboxNormalSpawn.addEventListener("change", () => {
       this.sandboxSettings.normalSpawn = this.sandboxNormalSpawn.checked;
@@ -73,8 +96,10 @@ class Game {
     this.canvas.addEventListener("click", (event) => this.spawnSandboxBlockAt(event));
     window.addEventListener("keydown", (event) => {
       if (event.code !== "Escape") return;
-      if (this.state === "playing") this.pause();
-      else if (this.state === "paused") this.resume();
+      if (this.state !== "playing" && this.state !== "paused") return;
+
+      event.preventDefault();
+      this.togglePause();
     });
 
     this.resetRun(this.mode);
@@ -88,6 +113,15 @@ class Game {
       option.value = col.toString();
       option.textContent = `Coluna ${col + 1}`;
       this.sandboxColumn.append(option);
+    }
+  }
+
+  populateSandboxWeapons() {
+    for (const weaponKey of WEAPON_ORDER) {
+      const option = document.createElement("option");
+      option.value = weaponKey;
+      option.textContent = WEAPONS[weaponKey].name;
+      this.sandboxWeapon.append(option);
     }
   }
 
@@ -166,10 +200,16 @@ class Game {
   }
 
   syncUi() {
+    const primaryPlayer = this.players[0];
     this.modeLabelEl.textContent = this.modeLabel();
+    this.weaponLabelEl.textContent = primaryPlayer ? WEAPONS[primaryPlayer.weaponKey].name : "Default";
+    this.ammoLabelEl.textContent = primaryPlayer ? this.ammoLabel(primaryPlayer) : "∞";
     this.pauseButton.disabled = this.state !== "playing";
     this.pauseButton.textContent = this.state === "paused" ? "Pausado" : "Pausar";
     this.sandboxControls.hidden = !this.isSandbox() || this.state !== "playing";
+    this.sandboxWeapon.value = this.sandboxSettings.weapon;
+    this.sandboxInfiniteAmmo.checked = this.sandboxSettings.infiniteAmmo;
+    this.sandboxInvincible.checked = this.sandboxSettings.invincible;
     this.sandboxNormalSpawn.checked = this.sandboxSettings.normalSpawn;
     this.sandboxAutoLevel.checked = this.sandboxSettings.autoLevel;
     this.sandboxLevelInput.disabled = this.sandboxSettings.autoLevel;
@@ -198,6 +238,14 @@ class Game {
     this.state = "paused";
     this.renderOverlay();
     this.syncUi();
+  }
+
+  togglePause() {
+    if (this.state === "playing") {
+      this.pause();
+    } else if (this.state === "paused") {
+      this.resume();
+    }
   }
 
   resume() {
@@ -231,7 +279,40 @@ class Game {
     this.level = 1;
     this.gameOver = false;
     if (this.isSandbox()) this.level = this.sandboxSettings.autoLevel ? 1 : this.sandboxSettings.manualLevel;
+    this.applySandboxWeapon();
     this.syncUi();
+  }
+
+  applySandboxWeapon() {
+    if (!this.isSandbox() || !this.players.length) return;
+
+    this.players[0].setWeapon(this.sandboxSettings.weapon);
+  }
+
+  isInfiniteAmmo() {
+    return this.isSandbox() && this.sandboxSettings.infiniteAmmo;
+  }
+
+  isPlayerInvincible() {
+    return this.isSandbox() && this.sandboxSettings.invincible;
+  }
+
+  ammoLabel(player) {
+    if (this.isInfiniteAmmo() || player.ammo === Infinity) return "∞";
+    return Math.max(0, player.ammo).toString();
+  }
+
+  hasAmmo(player, amount = 1) {
+    return this.isInfiniteAmmo() || player.ammo === Infinity || player.ammo >= amount;
+  }
+
+  consumeAmmo(player) {
+    if (this.isInfiniteAmmo() || player.ammo === Infinity) return true;
+    if (player.ammo <= 0) return false;
+
+    player.ammo -= 1;
+    this.syncUi();
+    return true;
   }
 
   sandboxLevelValue() {
@@ -358,13 +439,33 @@ class Game {
       for (const bullet of this.bullets) {
         if (bullet.dead || !rectsOverlap(bullet, block)) continue;
         bullet.dead = true;
-        block.hp -= 1;
+        block.hp -= bullet.damage;
+        if (bullet.shockwave) this.crushAdjacentBlocks(block);
         if (!this.isSandbox()) this.score += 25;
         this.addBurst(bullet.x, bullet.y, bullet.color, 4);
       }
     }
 
     this.bullets = this.bullets.filter((bullet) => !bullet.dead);
+  }
+
+  crushAdjacentBlocks(originBlock) {
+    const adjacentBlocks = this.blocks.filter((block) => {
+      if (block === originBlock || block.hp <= 0) return false;
+
+      const sameColumn = block.col === originBlock.col;
+      const neighboringColumn = Math.abs(block.col - originBlock.col) === 1;
+      const sameRow = Math.abs(block.y - originBlock.y) < 0.5;
+      const touchingAboveOrBelow = sameColumn && Math.abs(block.y - originBlock.y) === BLOCK_SIZE;
+      const touchingLeftOrRight = neighboringColumn && sameRow;
+
+      return touchingAboveOrBelow || touchingLeftOrRight;
+    });
+
+    for (const block of adjacentBlocks) {
+      block.hp = 0;
+      this.addBurst(block.x + block.w / 2, block.y + block.h / 2, block.color, 8);
+    }
   }
 
   update(dt) {
@@ -408,7 +509,6 @@ class Game {
     for (const particle of this.particles) particle.update(dt);
     this.particles = this.particles.filter((particle) => particle.life > 0);
 
-    if (this.players.every((player) => !player.alive)) this.gameOver = true;
     if (this.gameOver) {
       this.state = "gameover";
       this.renderOverlay();
@@ -477,6 +577,7 @@ class Game {
     this.timeEl.textContent = `${this.elapsed.toFixed(1)}s`;
     this.scoreEl.textContent = Math.floor(this.score).toString();
     this.levelEl.textContent = this.level.toString();
+    this.syncUi();
   }
 
   frame(now) {

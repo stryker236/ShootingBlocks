@@ -7,6 +7,51 @@ export const ARENA_LEFT = (CANVAS_WIDTH - COLS * BLOCK_SIZE) / 2;
 export const ARENA_RIGHT = ARENA_LEFT + COLS * BLOCK_SIZE;
 export const GRAVITY = 1450;
 
+export const WEAPONS = {
+  default: {
+    name: "Default",
+    damage: 1,
+    cooldown: 0.38,
+    bulletSpeed: 620,
+    burstCount: 1,
+    burstInterval: 0,
+    shockwave: false,
+    ammo: Infinity,
+  },
+  peashooter: {
+    name: "Peashooter",
+    damage: 99,
+    cooldown: 0.2,
+    bulletSpeed: 720,
+    burstCount: 1,
+    burstInterval: 0,
+    shockwave: false,
+    ammo: 40,
+  },
+  burst: {
+    name: "Burst Gun",
+    damage: 99,
+    cooldown: 0.58,
+    bulletSpeed: 720,
+    burstCount: 3,
+    burstInterval: 0.055,
+    shockwave: false,
+    ammo: 24,
+  },
+  crusher: {
+    name: "Crusher Cannon",
+    damage: 99,
+    cooldown: 0.95,
+    bulletSpeed: 560,
+    burstCount: 1,
+    burstInterval: 0,
+    shockwave: true,
+    ammo: 8,
+  },
+};
+
+export const WEAPON_ORDER = ["default", "peashooter", "burst", "crusher"];
+
 export const PLAYER_TEMPLATES = [
   {
     id: 1,

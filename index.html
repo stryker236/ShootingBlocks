@@ -25,6 +25,14 @@
           <span class="label">Modo</span>
           <strong id="mode-label">Single</strong>
         </div>
+        <div>
+          <span class="label">Arma</span>
+          <strong id="weapon-label">Default</strong>
+        </div>
+        <div>
+          <span class="label">Balas</span>
+          <strong id="ammo-label">∞</strong>
+        </div>
         <button id="pause" type="button">Pausar</button>
       </section>
 
@@ -32,6 +40,16 @@
         <label for="sandbox-column">Coluna</label>
         <select id="sandbox-column"></select>
         <button id="sandbox-spawn" type="button">Criar bloco</button>
+        <label for="sandbox-weapon">Arma</label>
+        <select id="sandbox-weapon"></select>
+        <label class="toggle-control">
+          <input id="sandbox-infinite-ammo" type="checkbox" checked />
+          <span>Balas infinitas</span>
+        </label>
+        <label class="toggle-control">
+          <input id="sandbox-invincible" type="checkbox" checked />
+          <span>Invencivel</span>
+        </label>
         <label class="toggle-control">
           <input id="sandbox-normal-spawn" type="checkbox" />
           <span>Spawns normais</span>

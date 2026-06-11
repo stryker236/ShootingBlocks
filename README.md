@@ -4,6 +4,12 @@ Shooting Blocks is a local browser game prototype about surviving in a narrow ar
 
 The game currently supports single-player, local two-player multiplayer on one keyboard, and a basic sandbox mode.
 
+## Game Summary
+
+Shooting Blocks feels like a compact arcade survival game mixed with a platforming pressure test. Blocks keep dropping into columns, turning the arena into shifting cover, stairs, traps, and danger all at once. You are not just dodging the blocks; you are deciding which ones to destroy, when to climb, and when to risk a shot before the stack gets too high.
+
+The core feel is fast, readable, and a little chaotic: short jumps, quick side shots, airborne downward shots, and collapsing stacks create small tactical moments inside a simple survival loop. In multiplayer, both players share the same cramped arena, so the game becomes cooperative crowd control with a bit of local chaos.
+
 ## Run Locally
 
 This project is a static HTML, CSS, and JavaScript game. Because the game uses JavaScript modules, run it from a local static server instead of opening `index.html` directly.
@@ -52,15 +58,25 @@ Choose `Single Player`, `Multiplayer`, or `Sandbox` before the game starts. Duri
 
 ### Sandbox
 
-Sandbox uses Player 1 controls. It disables normal scoring and survival game-over pressure by default. Click an empty arena column to create a normal falling block, click an existing block to destroy it, or use the sandbox controls above the canvas for precise column spawning. Sandbox can also run normal block spawning, use a manually selected level, let difficulty increase over time like a normal run, or reset immediately from the sandbox controls.
+Sandbox uses Player 1 controls. It disables normal scoring and survival game-over pressure by default. Click an empty arena column to create a normal falling block, click an existing block to destroy it, or use the sandbox controls above the canvas for precise column spawning. Sandbox can also run normal block spawning, use a manually selected level, let difficulty increase over time like a normal run, switch weapons, toggle infinite bullets, toggle invincibility, or reset immediately from the sandbox controls.
+
+## Weapons
+
+- `Default`: the starting gun. It fires slowly and deals 1 damage to blocks.
+- `Peashooter`: the baseline weapon. It fires faster than Default, shoots horizontally or downward while airborne, destroys one block per hit, and starts with 40 bullets.
+- `Burst Gun`: an arena-sculpting weapon. It fires 3 quick shots per burst, then waits briefly before the next burst, and starts with 24 bullets.
+- `Crusher Cannon`: a slow emergency weapon. It destroys the first block it hits, also breaks adjacent touching blocks above, below, left, and right, and starts with 8 bullets.
+
+Sandbox includes a weapon selector for testing the current weapon set.
 
 ## Gameplay Notes
 
 - Falling blocks damage players on contact.
 - Destroying a support block can release unsupported blocks above it.
 - The level increases over time, making blocks spawn faster and fall harder.
-- The run ends when every active player is out of HP or a block stack reaches the danger height.
+- The run ends when a block stack reaches the danger height.
 - Sandbox mode does not end from stack overflow, and its spawning/difficulty controls can be changed while it is running.
+- Players respawn after death, so HP loss no longer stops the run by itself.
 
 ## Project Docs
 

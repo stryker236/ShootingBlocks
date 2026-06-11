@@ -1,4 +1,4 @@
-import { ARENA_LEFT, ARENA_RIGHT, BLOCK_SIZE, FLOOR, GRAVITY } from "./constants.js";
+import { ARENA_LEFT, ARENA_RIGHT, BLOCK_SIZE, FLOOR, GRAVITY, WEAPONS } from "./constants.js";
 import { clamp, rectsOverlap } from "./utils.js";
 
 export class Player {
@@ -14,12 +14,21 @@ export class Player {
     this.h = 38;
     this.hp = 3;
     this.cooldown = 0;
+    this.weaponKey = "default";
+    this.ammo = Infinity;
+    this.burstShotsRemaining = 0;
+    this.burstTimer = 0;
+    this.respawnTimer = 0;
     this.grounded = true;
     this.alive = true;
   }
 
   update(dt, game) {
-    if (!this.alive) return;
+    if (!this.alive) {
+      this.respawnTimer = Math.max(0, this.respawnTimer - dt);
+      if (this.respawnTimer === 0) this.respawn(game);
+      return;
+    }
 
     this.previousY = this.y;
 
@@ -40,6 +49,8 @@ export class Player {
     this.resolveVertical(game.solidBlocks());
 
     this.cooldown = Math.max(0, this.cooldown - dt);
+    this.burstTimer = Math.max(0, this.burstTimer - dt);
+    if (this.burstShotsRemaining > 0 && this.burstTimer <= 0) this.fireBurstShot(game);
     if (game.input.isDown(this.fire)) this.shoot(game);
   }
 
@@ -83,7 +94,36 @@ export class Player {
   }
 
   shoot(game) {
-    if (this.cooldown > 0) return;
+    if (this.cooldown > 0 || this.burstShotsRemaining > 0) return;
+
+    const weapon = WEAPONS[this.weaponKey];
+    if (!game.hasAmmo(this, weapon.burstCount)) return;
+    if (weapon.burstCount > 1) {
+      this.burstShotsRemaining = weapon.burstCount;
+      this.fireBurstShot(game);
+      return;
+    }
+
+    this.fireBullet(game, weapon);
+    this.cooldown = weapon.cooldown;
+  }
+
+  fireBurstShot(game) {
+    const weapon = WEAPONS[this.weaponKey];
+    if (!game.consumeAmmo(this)) {
+      this.burstShotsRemaining = 0;
+      this.cooldown = weapon.cooldown;
+      return;
+    }
+
+    this.fireBullet(game, weapon);
+    this.burstShotsRemaining -= 1;
+    this.burstTimer = weapon.burstInterval;
+    if (this.burstShotsRemaining === 0) this.cooldown = weapon.cooldown;
+  }
+
+  fireBullet(game, weapon) {
+    if (weapon.burstCount === 1 && !game.consumeAmmo(this)) return;
 
     const aimingDown = game.input.isDown(this.down) && !this.grounded;
     const dir = this.aim;
@@ -94,16 +134,27 @@ export class Player {
         y: aimingDown ? this.y + this.h : this.y + this.h * 0.36,
         w: aimingDown ? 6 : 18,
         h: aimingDown ? 18 : 6,
-        vx: aimingDown ? 0 : dir * 680,
-        vy: aimingDown ? 680 : 0,
+        vx: aimingDown ? 0 : dir * weapon.bulletSpeed,
+        vy: aimingDown ? weapon.bulletSpeed : 0,
+        damage: weapon.damage,
+        shockwave: weapon.shockwave,
         color: this.color,
       }),
     );
-    this.cooldown = 0.18;
+  }
+
+  setWeapon(weaponKey) {
+    if (!WEAPONS[weaponKey]) return;
+
+    this.weaponKey = weaponKey;
+    this.ammo = WEAPONS[weaponKey].ammo;
+    this.cooldown = 0;
+    this.burstShotsRemaining = 0;
+    this.burstTimer = 0;
   }
 
   damage(game) {
-    if (game.isSandbox()) {
+    if (game.isPlayerInvincible()) {
       this.vy = -360;
       game.addBurst(this.x + this.w / 2, this.y + this.h / 2, this.color, 18);
       return;
@@ -113,6 +164,22 @@ export class Player {
     this.alive = this.hp > 0;
     this.vy = -360;
     game.addBurst(this.x + this.w / 2, this.y + this.h / 2, this.color, 18);
+    if (!this.alive) this.respawnTimer = 1.2;
+  }
+
+  respawn(game) {
+    this.x = this.spawnX - 15;
+    this.y = FLOOR - this.h;
+    this.previousY = this.y;
+    this.vx = 0;
+    this.vy = 0;
+    this.hp = 3;
+    this.cooldown = 0;
+    this.burstShotsRemaining = 0;
+    this.burstTimer = 0;
+    this.grounded = true;
+    this.alive = true;
+    game.addBurst(this.x + this.w / 2, this.y + this.h / 2, this.color, 16);
   }
 
   draw(ctx, input) {
