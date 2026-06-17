@@ -17,6 +17,13 @@ import {
 } from "./constants.js";
 import { Block, Particle, Pickup, Player } from "./entities.js";
 import { Input } from "./input.js";
+import {
+  availableColumns as getAvailableColumns,
+  hasSettledSupport as blockHasSettledSupport,
+  isColumnFull as columnIsFull,
+  landingYForColumn as getLandingYForColumn,
+  releaseUnsupportedBlocks as releaseUnsupportedStackBlocks,
+} from "./logic.js";
 import { rectsOverlap } from "./utils.js";
 
 const LEADERBOARD_KEY = "shooting-blocks-leaderboard";
@@ -433,40 +440,15 @@ class Game {
   }
 
   landingYForColumn(col, ignoreBlock) {
-    let landingY = FLOOR - BLOCK_SIZE;
-    for (const block of this.blocks) {
-      if (block === ignoreBlock || !block.settled || block.col !== col) continue;
-      landingY = Math.min(landingY, block.y - BLOCK_SIZE);
-    }
-    return landingY;
+    return getLandingYForColumn(this.blocks, col, ignoreBlock);
   }
 
   hasSettledSupport(block) {
-    if (Math.abs(block.y - (FLOOR - BLOCK_SIZE)) < 0.5) return true;
-
-    return this.blocks.some(
-      (other) =>
-        other !== block &&
-        other.settled &&
-        other.col === block.col &&
-        Math.abs(other.y - (block.y + BLOCK_SIZE)) < 0.5,
-    );
+    return blockHasSettledSupport(this.blocks, block);
   }
 
   releaseUnsupportedBlocks() {
-    let changed = true;
-
-    while (changed) {
-      changed = false;
-
-      for (const block of this.blocks) {
-        if (!block.settled || this.hasSettledSupport(block)) continue;
-
-        block.settled = false;
-        block.vy = Math.max(block.vy, 70);
-        changed = true;
-      }
-    }
+    releaseUnsupportedStackBlocks(this.blocks);
   }
 
   addBurst(x, y, color, amount = 10) {
@@ -476,15 +458,11 @@ class Game {
   }
 
   availableColumns() {
-    const columns = [];
-    for (let col = 0; col < COLS; col += 1) {
-      if (!this.isColumnFull(col)) columns.push(col);
-    }
-    return columns;
+    return getAvailableColumns(this.blocks);
   }
 
   isColumnFull(col) {
-    return this.landingYForColumn(col) < 0;
+    return columnIsFull(this.blocks, col);
   }
 
   randomAvailableColumn() {
