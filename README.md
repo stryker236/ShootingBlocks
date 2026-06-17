@@ -32,6 +32,12 @@ If port `8000` is already in use, choose another port:
 python -m http.server 5173
 ```
 
+## Tests
+
+```powershell
+npm test
+```
+
 ## Controls
 
 Choose `Single Player`, `Multiplayer`, or `Sandbox` before the game starts. During a run, press `Escape` or use `Pausar` to open the pause menu. Restarting, changing mode, and returning to Sandbox are only available from the start or pause menus.
